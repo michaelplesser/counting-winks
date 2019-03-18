@@ -36,7 +36,7 @@ def process_video():
     vid_file = 'video_data.mp4'
     vid = av.open(vid_file)
     for frame in vid.decode(video=0):
-        print('\tCurrent time being processed: {0:02}:{1:03}:'.format(frame.time//60, frame.time), end='\r') 
+        print('\tCurrent time being processed: %02d:%05.2f:'% (int(frame.time//60), frame.time), end='\r') 
         times.append(frame.time)
         arr = np.asarray(frame.to_image())  # Generate an RGB array for each pixel in the frame
         pix_val_L1 = arr[420,713][0]/255.   # Pixel RGB value (only take R, it's a red light) of light 1, and normalize to max RGB value (255)
