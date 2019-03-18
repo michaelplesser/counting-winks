@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import av
+
+import os
 import scipy
 import scipy.stats
 import numpy as np
@@ -8,10 +10,9 @@ import matplotlib.pyplot as plt
 
 class load_data:
     def __init__(self):
-        self.times = np.load('data/times.npy')
-        self.freqs = np.load('data/frequencies.npy')
-        self.ft_1  = np.load('data/Light1_fourier_data.npy')
-        self.ft_2  = np.load('data/Light2_fourier_data.npy')
+        self.times          = np.load('data/times.npy')
+        self.light1_data    = np.load('data/Light1_data.npy')
+        self.light2_data    = np.load('data/Light2_data.npy')
 
 def process_video():
     ''' 
@@ -36,7 +37,7 @@ def process_video():
     vid_file = 'video_data.mp4'
     vid = av.open(vid_file)
     for frame in vid.decode(video=0):
-        print('\tCurrent time being processed: %02d:%05.2f:'% (int(frame.time//60), frame.time), end='\r') 
+        print('\tCurrent time being processed: %02d:%05.2f:'% (int(frame.time//60), frame.time%60), end='\r') 
         times.append(frame.time)
         arr = np.asarray(frame.to_image())  # Generate an RGB array for each pixel in the frame
         pix_val_L1 = arr[420,713][0]/255.   # Pixel RGB value (only take R, it's a red light) of light 1, and normalize to max RGB value (255)
@@ -45,6 +46,7 @@ def process_video():
         intensity_L2.append(pix_val_L2)
 
     ### Save data files under ./data as .npy files 
+    if not os.path.exists('./data'): os.mkdir('./data')
     np.save('data/times',times)
     np.save('data/Light1_data',intensity_L1)
     np.save('data/Light2_data',intensity_L2)
@@ -62,7 +64,7 @@ def FFT(x, y):
     ft    = ft[   :len(freqs)//2]
     freqs = freqs[:len(freqs)//2]
 
-    return ft
+    return freqs, ft
 
 
 def find_fundamental_frequency(freqs,amps):
@@ -130,9 +132,13 @@ def main():
         process_video()                                         # Process the video file to obtain pixel data, times, etc...
         data = load_data()                                      # Load the data
 
+    ### Perform the fourier transform
+    freqs_1, ft_1 = FFT(data.times, data.light1_data)
+    freqs_2, ft_2 = FFT(data.times, data.light2_data)
+
     ### Analyze the data to find the fundamental frequency
-    peaks_1, f0_1 = find_fundamental_frequency(data.freqs, data.ft_1)
-    peaks_2, f0_2 = find_fundamental_frequency(data.freqs, data.ft_2)
+    peaks_1, f0_1 = find_fundamental_frequency(freqs_1, ft_1)
+    peaks_2, f0_2 = find_fundamental_frequency(freqs_2, ft_2)
 
     #print(f0_1, f0_2)
     period = 1. / abs(f0_1 - f0_2) / 60.  # Beat period (in minutes)
