@@ -3,7 +3,9 @@
 import av
 
 import os
+import sys
 import scipy
+import argparse
 import scipy.stats
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,6 +15,16 @@ class load_data:
         self.times          = np.load('data/times.npy')
         self.light1_data    = np.load('data/Light1_data.npy')
         self.light2_data    = np.load('data/Light2_data.npy')
+
+def input_args():
+    parser = argparse.ArgumentParser(description='Options for counting-winks.py')
+
+    parser.add_argument('-t', action='store', type=int, help='supress graphics')
+
+    args = parser.parse_args()
+
+    return args
+
 
 def process_video():
     ''' 
@@ -87,7 +99,10 @@ def find_fundamental_frequency(freqs,amps):
     print('\tAnalyzing light data...')
 
     peaks            = find_peaks(freqs, amps)                                  # Function defined below
-    peak_fs, peak_as = zip(*peaks)                                              # Unzip [(x1,y1),(x2,y2),...] -> [x1, x2, ...], [y1, y2, ...]
+    try:
+        peak_fs, peak_as = zip(*peaks)                                              # Unzip [(x1,y1),(x2,y2),...] -> [x1, x2, ...], [y1, y2, ...]
+    except ValueError:
+        sys.exit("\nNot enough data given, no peaks found :( \nTry a longer -t\nBye bye!\n")
      
     harmonics = [i/peak_fs[0] for i in peak_fs]                                 # Harmonics are integer multiples of your fundamental frequency
     slope, intercept, r, p, stderr = scipy.stats.linregress(harmonics, peak_fs) # Apply a linear fit (maybe unnecessary? To be investigated...)
@@ -122,6 +137,8 @@ def find_peaks(x,y):
 
 def main():
     
+    args = input_args()
+
     print('Beginning analysis...\n')
 
     ### Load the data produced in process_video()
@@ -132,6 +149,12 @@ def main():
         process_video()                                         # Process the video file to obtain pixel data, times, etc...
         data = load_data()                                      # Load the data
 
+    ### As a fun way to play with time-frequency uncertainty, the -t <int> flag shortens the amount of data transformed (and gives worse results!)
+    if args.t:
+        data.times = [ti for ti in data.times if ti<args.t]
+        data.light1_data = data.light1_data[:len(data.times)]
+        data.light2_data = data.light2_data[:len(data.times)]
+    
     ### Perform the fourier transform
     freqs_1, ft_1 = FFT(data.times, data.light1_data)
     freqs_2, ft_2 = FFT(data.times, data.light2_data)
