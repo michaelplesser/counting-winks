@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
-import av
+#import av  # This module is only needed if processing the video data.
+            # It can be a pain in the ass to get its dependencies working.
+            # For the analysis, just use the data/*.npy files, no av needed!
 
 import os
 import sys
@@ -17,9 +19,11 @@ class load_data:
         self.light2_data    = np.load('data/Light2_data.npy')
 
 def input_args():
-    parser = argparse.ArgumentParser(description='Options for counting-winks.py')
+    parser = argparse.ArgumentParser(description="counting-winks.py is a program to analyze the frequency of two blinking lights on the Boston skyline as viewed from Mission Hill.\
+                                                  To run, use 'python3 counting-winks.py'. For further options, try 'python3 counting-winks.py -h', or '--help'.")
 
-    parser.add_argument('-t', action='store', type=int, help='supress graphics')
+    parser.add_argument('-b', action='store_true', help='Supress graphics, display no plots')
+    parser.add_argument('-t', action='store', type=float, help='How many seconds to analyze')
 
     args = parser.parse_args()
 
@@ -79,7 +83,7 @@ def FFT(x, y):
     return freqs, ft
 
 
-def find_fundamental_frequency(freqs,amps):
+def find_fundamental_frequency(freqs,amps,args):
     '''
         This function finds the fundamental frequency (first harmonic) of a transform.
         We could just use the first non-trivial peak's frequency, but because the lights
@@ -98,7 +102,7 @@ def find_fundamental_frequency(freqs,amps):
 
     print('\tAnalyzing light data...')
 
-    peaks            = find_peaks(freqs, amps)                                  # Function defined below
+    peaks = find_peaks(freqs, amps)                                                 # Function defined below
     try:
         peak_fs, peak_as = zip(*peaks)                                              # Unzip [(x1,y1),(x2,y2),...] -> [x1, x2, ...], [y1, y2, ...]
     except ValueError:
@@ -111,11 +115,11 @@ def find_fundamental_frequency(freqs,amps):
     print('\t\tPlotting frequency spectrum with "found" peaks')
     plt.plot(freqs, amps)                                                       # Plot spectrum
     plt.plot(peak_fs, peak_as, 'ro')                                            # Plot peaks as points
-    plt.show()
+    if not args.b : plt.show()
     
     print('\t\tPlotting frequency vs harmonic number\n')
     plt.plot(harmonics, peak_fs, 'o', harmonics, line)
-    plt.show()
+    if not args.b : plt.show()
     
     return peaks, slope 
 
@@ -128,7 +132,7 @@ def find_peaks(x,y):
     for i, d in enumerate(zip(x, y)):
         ### These two parameters help define the peak search.
         ### They're manually tuned, but auto-tuning is TBD in the future
-        buf = 100                                           # A given y must be the largest in +-(buf) samples to be a "peak" 
+        buf = 50                                           # A given y must be the largest in +-(buf) samples to be a "peak" 
         threshold = 100                                     # It also must be above a threshold value
         if i<buf or i>(len(x)-buf): continue                # Avoid index out of bound errors, we don't mind ignoring these regions in the peak hunt
         if d[1] == max(y[i-buf:i+buf]) and d[1]>threshold:  # Peak-finding logic
@@ -154,14 +158,20 @@ def main():
         data.times = [ti for ti in data.times if ti<args.t]
         data.light1_data = data.light1_data[:len(data.times)]
         data.light2_data = data.light2_data[:len(data.times)]
+
+    ### Plot 10 seconds of light1's waveform for reference.
+    print('\tPlotting 10 seconds of light1 waveform\n')
+    plt.plot(data.times, data.light1_data)                      # Plot the waveform in the time domain
+    plt.gca().set_xlim([0,10])                                  # Set an axis range for 0,10 seconds on the x-axis
+    if not args.b:  plt.show()
     
     ### Perform the fourier transform
     freqs_1, ft_1 = FFT(data.times, data.light1_data)
     freqs_2, ft_2 = FFT(data.times, data.light2_data)
 
     ### Analyze the data to find the fundamental frequency
-    peaks_1, f0_1 = find_fundamental_frequency(freqs_1, ft_1)
-    peaks_2, f0_2 = find_fundamental_frequency(freqs_2, ft_2)
+    peaks_1, f0_1 = find_fundamental_frequency(freqs_1, ft_1, args)
+    peaks_2, f0_2 = find_fundamental_frequency(freqs_2, ft_2, args)
 
     #print(f0_1, f0_2)
     period = 1. / abs(f0_1 - f0_2) / 60.  # Beat period (in minutes)
